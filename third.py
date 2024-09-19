@@ -69,7 +69,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 # Stable Diffusion 모델 경로
 sd_model_path = "CompVis/stable-diffusion-v1-4"  # Stable Diffusion 기본 모델 경로
 
-# 감정 분석 모델 경로 (감정 분석에 더 적합한 모델 사용)
+# 감정 분석 모델 경로 (감정 분석에 더 적합한 모델 사용) bert model 사용 
 sentiment_model_path = "nlptown/bert-base-multilingual-uncased-sentiment"
 
 # 감정 분석 모델 및 토크나이저 로드
