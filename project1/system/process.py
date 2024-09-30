@@ -7,7 +7,7 @@ class EmotionImageProcessor:
         # 모델 경로 설정
         self.sd_model_path = "CompVis/stable-diffusion-v1-4"  # Stable Diffusion 기본 모델 경로
         self.sentiment_model_path = path
-        self.lang = path.split("/")[-1].split("_")[1]
+        self.lang = path.split("/")[-1].split("_")[1] if path != "google/gemma-2-2b-it" else "eng"
 
         # GPU 설정
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
