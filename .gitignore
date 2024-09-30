@@ -1,1 +1,3 @@
 gemma-venv/
+temp/
+__pycache__/
