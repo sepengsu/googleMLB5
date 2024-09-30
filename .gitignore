@@ -1,5 +1,9 @@
 gemma-venv/
 temp/
 __pycache__/
+project1/model/eng/*
+project1/model/kor/*
+project1/output/eng/*
+project1/output/kor/*
 model/
 output/
