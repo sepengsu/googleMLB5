@@ -1,3 +1,5 @@
 gemma-venv/
 temp/
 __pycache__/
+model/
+output/
