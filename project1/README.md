@@ -41,5 +41,5 @@ kor : preprocess.py 실행 후 fintuning_kor.py 실행
 
 ### 주의할점 
 1. README.md가 있는 곳이 pwd가 되도록하고 실행합니다. 
-2. finetuned model은 마지막 index인 모델 (최근에 학습한 모델)을 사용합니다. 
+2. finetuned model은 각각 huggingface에서 실행할 수 있도록 합니다. 
 3. Default는 eng만 하는 것을 추천합니다. 
