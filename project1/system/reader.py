@@ -20,6 +20,8 @@ class ModelReader:
     def path(self,mode,lang):
         if mode == "default":
             return "google/gemma-2-2b-it" # 기본적인 모델
-        index = len(os.listdir(f"./model/{lang}"))
-        return f"./model/{self.lang}/model_{self.lang}_{index}"
+        elif lang == "eng":
+            return "pengsu/MLB-care-for-mind-eng"
+        elif lang == "kor":
+            return "pengsu/MLB-care-for-mind-kor"
     

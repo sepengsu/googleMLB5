@@ -4,7 +4,10 @@ from datasets import load_dataset
 from peft import LoraConfig, get_peft_model
 import torch, os, json
 import numpy as np
-from trl import SFTTrainer
+from history import LossHistoryCallback, save_loss_plot
+import pandas as pd 
+
+
 # 1. getcwd() 함수를 사용하여 현재 작업 디렉토리에서 README.md 파일이 있는지 확인, 아니면 exit() 함수를 사용하여 프로그램 종료
 if not os.path.exists("README.md"):
     print("README.md 파일이 존재하지 않습니다.")
@@ -42,7 +45,7 @@ model =AutoModelForSequenceClassification.from_pretrained(
     label2id=label2id   # 레이블을 인덱스로 변환
 )
 
-# LoRA 설정 추가
+# LoRA 설정 추가 
 lora_config = LoraConfig(
     r=16,
     lora_alpha=32,
@@ -71,9 +74,14 @@ test_dataset = test_dataset.map(preprocess_function, batched=True)
 train_dataset = train_dataset.remove_columns(["text"])
 test_dataset = test_dataset.remove_columns(["text"])
 
+# 데이터셋 셔플 
+train_dataset = train_dataset.shuffle(seed=42)
+test_dataset = test_dataset.shuffle(seed=42)
+
 # 훈련 및 테스트 데이터셋을 배치로 변환
 train_dataset = train_dataset.with_format("torch")
 test_dataset = test_dataset.with_format("torch")
+
 
 import numpy as np
 import evaluate
@@ -81,7 +89,7 @@ metric = evaluate.combine(["accuracy", "f1", "precision", "recall"])
 
 def compute_metrics(eval_pred):
     predictions, labels = eval_pred
-    predictions = np.argmax(predictions, axis=1)  # Convert probabilities to predicted labels
+    predictions = np.argmax(predictions, axis=-1)  # Convert probabilities to predicted labels
     return metric.compute(predictions=predictions, references=labels)
 
 # output 디렉토리 생성
@@ -95,17 +103,18 @@ dir_name = create_dir("./output/eng")
 
 training_args = TrainingArguments(
     output_dir=dir_name,
-    eval_steps=1000,
+    eval_steps=500,
     eval_strategy="steps",
-    logging_steps=1000,
-    learning_rate=2e-5,
+    logging_steps=500,
+    learning_rate=2e-4,
+    lr_scheduler_type="cosine",
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
-    num_train_epochs=5,
+    num_train_epochs=4,
     optim="adamw_8bit",
     weight_decay=0.01,
     logging_dir="./logs",
-    save_steps=1000,
+    save_steps=500,
     save_total_limit=2,
     load_best_model_at_end=True,
     metric_for_best_model="eval_accuracy",
@@ -123,7 +132,9 @@ trainer = Trainer(
     train_dataset=train_dataset,
     eval_dataset=test_dataset,
     compute_metrics=compute_metrics,  # 메트릭 함수 추가
-    data_collator=data_collator
+    data_collator=data_collator,
+    callbacks=[LossHistoryCallback()]  # 콜백 함수 추가
+    
 )
 # 모델 파인튜닝 시작
 print(f"모델 파인튜닝을 시작합니다. {dir_name} 경로에 저장됩니다.")
@@ -134,4 +145,6 @@ model_save_path = f"./model/eng/model_{dir_name.split('/')[-1]}"
 model.save_pretrained(model_save_path)
 tokenizer.save_pretrained(model_save_path)
 
+# 손실 그래프 저장
+save_loss_plot(trainer.callback_handler.callbacks[0].loss_history, dir_name)
 print(f"모델이 {model_save_path} 경로에 저장되었습니다.")

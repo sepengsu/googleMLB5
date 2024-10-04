@@ -6,6 +6,8 @@ import torch, os, json
 import numpy as np
 from evaluate import Evaluator
 from evaluate import load
+# from history import LossHistoryCallback, save_loss_plot
+import pandas as pd
 
 # 1. getcwd() 함수를 사용하여 현재 작업 디렉토리에서 README.md 파일이 있는지 확인, 아니면 exit() 함수를 사용하여 프로그램 종료
 if not os.path.exists("README.md"):
@@ -64,28 +66,70 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # 데이터 전처리 함수 정의
 def preprocess_function(examples):
-    return tokenizer(examples["text"], truncation=True, padding="max_length", max_length=64)
+    return tokenizer(examples["text"], truncation=True, padding="max_length", max_length=128)
 
 # 데이터 전처리 적용
 train_dataset = train_dataset.map(preprocess_function, batched=True)
 test_dataset = test_dataset.map(preprocess_function, batched=True)
 
+# 훈련 및 테스트 데이터셋을 배치로 변환
+train_dataset = train_dataset.with_format("torch")
+test_dataset = test_dataset.with_format("torch")
+
 # 불필요한 열 제거 (label 필드를 그대로 사용)
 train_dataset = train_dataset.remove_columns(["text"])
 test_dataset = test_dataset.remove_columns(["text"])
+
+# 데이터셋 셔플 
+train_dataset = train_dataset.shuffle(seed=42)
+test_dataset = test_dataset.shuffle(seed=42)
 
 # 훈련 및 테스트 데이터셋을 배치로 변환
 train_dataset = train_dataset.with_format("torch")
 test_dataset = test_dataset.with_format("torch")
 
+
 import numpy as np
 import evaluate
-metric = evaluate.combine(["accuracy", "f1", "precision", "recall"])
+
+# accuracy와 f1, precision, recall을 사용하되, 다중 클래스 분류를 위한 'weighted' 평균 방식 적용
+acc = evaluate.load("accuracy")
+f1 = evaluate.load("f1")
+precision = evaluate.load("precision")
+recall = evaluate.load("recall")
 
 def compute_metrics(eval_pred):
     predictions, labels = eval_pred
-    predictions = np.argmax(predictions, axis=1)  # Convert probabilities to predicted labels
-    return metric.compute(predictions=predictions, references=labels)
+    predictions = np.argmax(predictions, axis=-1)
+
+    # Accuracy는 'average' 매개변수를 사용하지 않음
+    accuracy = acc.compute(predictions=predictions, references=labels)
+
+    # F1, Precision, Recall은 'average="weighted"'로 계산
+    f1_score = f1.compute(predictions=predictions, references=labels, average="weighted")
+    precision_score = precision.compute(predictions=predictions, references=labels, average="weighted")
+    recall_score = recall.compute(predictions=predictions, references=labels, average="weighted")
+
+    # 결과를 합쳐서 반환
+    return {
+        "accuracy": accuracy["accuracy"],
+        "f1": f1_score["f1"],
+        "precision": precision_score["precision"],
+        "recall": recall_score["recall"],
+    }
+
+
+def custom_loss(logits, labels):
+    # 가중치 계산
+    weight_tensor = torch.tensor([0.2032, 0.2704, 0.2529, 0.2735]).to(logits.device).type_as(logits)
+    
+    # 가중치가 적용된 CrossEntropyLoss 함수 사용
+    loss_fn = torch.nn.CrossEntropyLoss(weight=weight_tensor)
+    
+    # 로짓과 레이블로 손실 함수 계산
+    loss = loss_fn(logits, labels)
+    
+    return loss
 
 # output 디렉토리 생성
 def create_dir(path):
@@ -98,20 +142,21 @@ dir_name = create_dir("./output/kor")
 
 training_args = TrainingArguments(
     output_dir=dir_name,
-    eval_steps=1000,
+    eval_steps=500,
     eval_strategy="steps",
-    logging_steps=1000,
-    learning_rate=2e-5,
+    logging_steps=500,
+    learning_rate=2e-4,
+    lr_scheduler_type="cosine",
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
-    num_train_epochs=5,
+    num_train_epochs=4,
     optim="adamw_8bit",
     weight_decay=0.01,
     logging_dir="./logs",
-    save_steps=1000,
+    save_steps=500,
     save_total_limit=2,
     load_best_model_at_end=True,
-    metric_for_best_model="eval_accuracy",
+    metric_for_best_model="eval_f1",
     greater_is_better=True,
     gradient_accumulation_steps=2,
     fp16=False,   # fp16 비활성화
@@ -119,21 +164,30 @@ training_args = TrainingArguments(
 
 from transformers import DataCollatorWithPadding
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+
+# loss 설정을 위한 Custom Trainer 클래스 정의
+class CustomTrainer(Trainer):
+    def compute_loss(self, model, inputs, return_outputs=False):
+        labels = inputs.pop("labels")
+        outputs = model(**inputs)
+        logits = outputs.logits
+        loss = custom_loss(logits, labels)
+        return (loss, outputs) if return_outputs else loss
 #Trainer 설정
-trainer = Trainer(
+trainer = CustomTrainer(
     model=model,
     args=training_args,
     train_dataset=train_dataset,
     eval_dataset=test_dataset,
     compute_metrics=compute_metrics,  # 메트릭 함수 추가
-    data_collator=data_collator
+    data_collator=data_collator,
 )
 # 모델 파인튜닝 시작
 print(f"모델 파인튜닝을 시작합니다. {dir_name} 경로에 저장됩니다.")
 trainer.train()
 
 # 학습된 모델 저장
-model_save_path = f"./model/eng/model_{dir_name.split('/')[-1]}"
+model_save_path = f"./model/kor/model_{dir_name.split('/')[-1]}"
 model.save_pretrained(model_save_path)
 tokenizer.save_pretrained(model_save_path)
 

@@ -52,12 +52,6 @@ class EmotionImageApp:
         # 엔터키로 입력을 처리
         window.bind('<Return>', self.show_status)
 
-        # 감정 분석 및 이미지 생성 클래스 인스턴스
-        model_type = self.model_mode.get()
-        language = self.language_mode.get()
-        path = ModelReader(model_type, language)()
-        self.processor = EmotionImageProcessor(path)
-
         # 생성된 이미지를 저장하기 위한 변수
         self.generated_image = None
 
@@ -81,7 +75,12 @@ class EmotionImageApp:
     def show_status(self, event=None):
         # 입력된 텍스트를 가져옴
         status = self.entry.get()
-
+        # 감정 분석 및 이미지 생성 클래스 인스턴스
+        model_type = self.model_mode.get()
+        language = self.language_mode.get()
+        path = ModelReader(model_type, language)()
+        print(path)
+        self.processor = EmotionImageProcessor(path, language)
         # 이미지가 있으면 제거하고 "로딩 중" 메시지 표시
         self.output_label.config(text="로딩 중... 이미지 생성 중입니다.")
         self.image_label.config(image='')  # 기존 이미지 제거
@@ -105,6 +104,7 @@ class EmotionImageApp:
             self.output_label.config(text="오늘 기분이 좋지 않으시군요")
         else:
             self.output_label.config(text="오늘 기분이 좋으시군요")
+        self.processor = None  # 객체 제거
         # 다운로드 버튼 표시
         self.download_button.pack()
 

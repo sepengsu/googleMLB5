@@ -10,7 +10,11 @@ pip install numpy==1.26.3
 ```
 
 ### Demo app
-![Demo Application Screenshot](docs/temp.png)
+<p align="center">
+    <img src="docs/image.png" alt="alt text" width="45%" />
+    <img src="docs/image2.png" alt="alt text" width="45%" />
+</p>
+
 
 ### Demo app 사용방법 
 0. demo.py 파일 실행 
